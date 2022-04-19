@@ -1,16 +1,19 @@
 import { now } from 'moment';
-import { Vault, normalizePath } from 'obsidian';
+import { App, Notice, Vault, normalizePath } from 'obsidian';
 import { DAY_PLANNER_DEFAULT_CONTENT, DAY_PLANNER_FILENAME } from './constants';
 import MomentDateRegex from './moment-date-regex';
 import { DayPlannerSettings, DayPlannerMode, NoteForDateQuery } from './settings';
+import type DayPlanner from './main';
 
 export default class DayPlannerFile {
+    app: App
     vault: Vault;
     settings: DayPlannerSettings;
     momentDateRegex: MomentDateRegex;
     noteForDateQuery: NoteForDateQuery;
 
-    constructor(vault: Vault, settings: DayPlannerSettings){
+    constructor(app: App, vault: Vault, settings: DayPlannerSettings){
+        this.app = app
         this.vault = vault;
         this.settings = settings;
         this.momentDateRegex = new MomentDateRegex();
@@ -35,8 +38,8 @@ export default class DayPlannerFile {
     }
 
     async prepareFile() {
-        try {      
-            if(this.settings.mode === DayPlannerMode.File){      
+        try {
+            if(this.settings.mode === DayPlannerMode.File){
                 await this.createFolderIfNotExists(this.settings.customFolder);
                 await this.createFileIfNotExists(this.todayPlannerFilePath());
             }
@@ -61,7 +64,23 @@ export default class DayPlannerFile {
         try {
             const normalizedFileName = normalizePath(fileName);
             if (!await this.vault.adapter.exists(normalizedFileName, false)) {
-                await this.vault.create(normalizedFileName, DAY_PLANNER_DEFAULT_CONTENT);
+                // @ts-ignore
+                const templaterPlugin = this.app.plugins.plugins['templater-obsidian'];
+                if (templaterPlugin && this.settings.templaterFile) {
+                    const file = this.app.vault.getFiles().filter(
+                        (f) => f.path.replaceAll(/\\+/g, '/') === this.settings.templaterFile.replaceAll(/\\+/g, '/')
+                    );
+                    if (file.length === 0) {
+                        new Notice(`Couldn't find the specified template, use default template instead.`, 2000);
+                        await this.vault.create(normalizedFileName, DAY_PLANNER_DEFAULT_CONTENT);
+                        return;
+                    }
+                    const content = await this.app.vault.read(file[0]);
+                    const newFile = await this.vault.create(normalizedFileName, content);
+                    templaterPlugin.templater.overwrite_file_commands(newFile, false);
+                } else {
+                    await this.vault.create(normalizedFileName, DAY_PLANNER_DEFAULT_CONTENT);
+                }
             }
         } catch (error) {
             console.log(error)
@@ -69,16 +88,16 @@ export default class DayPlannerFile {
     }
 
     async getFileContents(fileName: string){
-        this.prepareFile();
+        await this.prepareFile();
         try {
             return await this.vault.adapter.read(fileName);
         } catch (error) {
             console.log(error)
         }
     }
-    
+
     async updateFile(fileName: string, fileContents: string){
-        this.prepareFile();
+        await this.prepareFile();
         try {
             return await this.vault.adapter.write(normalizePath(fileName), fileContents);
         } catch (error) {

@@ -16,7 +16,7 @@ export default class PlannerMarkdown {
     progress: Progress;
     mermaid: PlannerMermaid;
     noteForDateQuery: NoteForDateQuery;
-    
+
     constructor(workspace: Workspace, settings: DayPlannerSettings, file: DayPlannerFile, parser: Parser, progress: Progress){
         this.workspace = workspace;
         this.settings = settings;
@@ -26,7 +26,7 @@ export default class PlannerMarkdown {
         this.mermaid = new PlannerMermaid(this.progress);
         this.noteForDateQuery = new NoteForDateQuery();
     }
-    
+
     async insertPlanner() {
         const filePath = this.file.todayPlannerFilePath();
         const fileContents = await (await this.file.getFileContents(filePath)).split('\n');
@@ -47,7 +47,7 @@ export default class PlannerMarkdown {
             console.log(error)
         }
     }
-    
+
     async updateDayPlannerMarkdown(planSummary: PlanSummaryData) {
         if((this.dayPlannerLastEdit + 6000) > new Date().getTime()) {
             return;
